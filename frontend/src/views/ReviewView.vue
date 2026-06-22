@@ -2,43 +2,43 @@
   <section>
     <div class="page-title">
       <div>
-        <h2>AI Bid Review</h2>
-        <p>Compare tender requirements with a prepared bid document and generate risk findings.</p>
+        <h2>AI审标</h2>
+        <p>对比招标文件和已编写标书，自动识别响应缺口、风险项和修改建议。</p>
       </div>
     </div>
 
     <div class="grid-2">
       <div class="panel">
-        <label>Review Title<input v-model="form.title" class="control" /></label>
-        <label>Project
+        <label>审查标题<input v-model="form.title" class="control" /></label>
+        <label>关联项目
           <select v-model="form.projectId" class="control">
-            <option :value="undefined">None</option>
+            <option :value="undefined">不关联项目</option>
             <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.projectName }}</option>
           </select>
         </label>
-        <label>Tender Text<textarea v-model="form.tenderText" class="control" rows="9" /></label>
-        <label>Bid Text<textarea v-model="form.bidText" class="control" rows="9" /></label>
-        <button class="primary" :disabled="loading" @click="submit">{{ loading ? 'Reviewing...' : 'Start Review' }}</button>
+        <label>招标文件内容<textarea v-model="form.tenderText" class="control" rows="9" /></label>
+        <label>投标文件内容<textarea v-model="form.bidText" class="control" rows="9" /></label>
+        <button class="primary" :disabled="loading" @click="submit">{{ loading ? '审查中...' : '开始审标' }}</button>
       </div>
 
       <div class="panel">
-        <h3>Review Report</h3>
-        <p v-if="!result" class="empty">No result yet.</p>
+        <h3>审标报告</h3>
+        <p v-if="!result" class="empty">暂无审查结果。</p>
         <template v-else>
           <div class="alert" :class="alertType">{{ result.summary }}</div>
-          <h4>Issues</h4>
+          <h4>问题清单</h4>
           <table class="data-table">
-            <thead><tr><th>Type</th><th>Severity</th><th>Finding</th><th>Suggestion</th></tr></thead>
+            <thead><tr><th>类型</th><th>严重程度</th><th>发现问题</th><th>修改建议</th></tr></thead>
             <tbody>
               <tr v-for="issue in result.issues" :key="issue.category + issue.finding">
                 <td>{{ issue.category }}</td>
-                <td><span :class="issue.severity === 'High' || issue.severity === 'Fatal' || issue.severity === '高' || issue.severity === '致命' ? 'issue-high' : 'issue-medium'">{{ issue.severity }}</span></td>
+                <td><span :class="isHighRisk(issue.severity) ? 'issue-high' : 'issue-medium'">{{ issue.severity }}</span></td>
                 <td>{{ issue.finding }}</td>
                 <td>{{ issue.suggestion }}</td>
               </tr>
             </tbody>
           </table>
-          <h4>Checklist</h4>
+          <h4>提交前检查项</h4>
           <label v-for="item in result.checklist" :key="item" class="check-line"><input type="checkbox" /> {{ item }}</label>
         </template>
       </div>
@@ -53,22 +53,26 @@ import { api, type BidProject, type ReviewResponse } from '../api/client';
 const loading = ref(false);
 const result = ref<ReviewResponse | null>(null);
 const projects = ref<BidProject[]>([]);
-const form = reactive({ projectId: undefined as number | undefined, title: 'Bid Document Review', tenderText: '', bidText: '' });
+const form = reactive({ projectId: undefined as number | undefined, title: '标书合规审查', tenderText: '', bidText: '' });
+
+function isHighRisk(severity: string) {
+  return ['高', '致命', 'High', 'Fatal'].includes(severity);
+}
 
 const alertType = computed(() => {
   if (!result.value) return 'info';
-  return result.value.riskLevel === '高' || result.value.riskLevel === '致命' ? 'error' : result.value.riskLevel === '中' ? 'warning' : 'success';
+  return isHighRisk(result.value.riskLevel) ? 'error' : result.value.riskLevel === '中' ? 'warning' : 'success';
 });
 
 async function submit() {
   if (!form.tenderText || !form.bidText) {
-    alert('Please fill tender text and bid text.');
+    alert('请填写招标文件内容和投标文件内容。');
     return;
   }
   loading.value = true;
   try {
     result.value = await api.review({ ...form });
-    alert('Review completed and archived.');
+    alert('审查完成，报告已归档。');
   } finally {
     loading.value = false;
   }
