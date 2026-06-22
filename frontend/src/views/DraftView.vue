@@ -26,7 +26,19 @@
           </select>
         </label>
         <label>招标要求<textarea v-model="form.tenderText" class="control" rows="7" /></label>
+        <label>招标文件附件
+          <input class="control" type="file" multiple @change="onTenderFilesChange" />
+        </label>
+        <div v-if="tenderFiles.length" class="file-list">
+          <span v-for="file in tenderFiles" :key="file.name">{{ file.name }}</span>
+        </div>
         <label>企业知识上下文<textarea v-model="form.knowledgeContext" class="control" rows="5" /></label>
+        <label>企业素材附件
+          <input class="control" type="file" multiple @change="onMaterialFilesChange" />
+        </label>
+        <div v-if="materialFiles.length" class="file-list">
+          <span v-for="file in materialFiles" :key="file.name">{{ file.name }}</span>
+        </div>
         <label>补充要求<textarea v-model="form.userRequirement" class="control" rows="3" /></label>
         <button class="primary" :disabled="loading" @click="submit">{{ loading ? '生成中...' : '生成标书' }}</button>
       </div>
@@ -46,6 +58,8 @@ import { api, type BidProject, type DraftResponse } from '../api/client';
 const loading = ref(false);
 const result = ref<DraftResponse | null>(null);
 const projects = ref<BidProject[]>([]);
+const tenderFiles = ref<File[]>([]);
+const materialFiles = ref<File[]>([]);
 const form = reactive({
   projectId: undefined as number | undefined,
   title: '投标文件初稿',
@@ -62,11 +76,25 @@ async function submit() {
   }
   loading.value = true;
   try {
-    result.value = await api.draft({ ...form });
+    if (tenderFiles.value.length || materialFiles.value.length) {
+      result.value = await api.draftWithFiles({ ...form }, tenderFiles.value, materialFiles.value);
+    } else {
+      result.value = await api.draft({ ...form });
+    }
     alert('标书初稿已生成并归档。');
   } finally {
     loading.value = false;
   }
+}
+
+function onTenderFilesChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  tenderFiles.value = Array.from(input.files || []);
+}
+
+function onMaterialFilesChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  materialFiles.value = Array.from(input.files || []);
 }
 
 onMounted(async () => {

@@ -5,6 +5,7 @@ import com.lemerence.tender.model.BidProject;
 import com.lemerence.tender.repository.BidProjectRepository;
 import com.lemerence.tender.repository.DraftDocumentRepository;
 import com.lemerence.tender.repository.ReviewReportRepository;
+import com.lemerence.tender.service.AttachmentStorageService;
 import jakarta.validation.Valid;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,15 +22,18 @@ public class ProjectController {
     private final BidProjectRepository projectRepository;
     private final ReviewReportRepository reviewReportRepository;
     private final DraftDocumentRepository draftDocumentRepository;
+    private final AttachmentStorageService attachmentStorageService;
 
     public ProjectController(
             BidProjectRepository projectRepository,
             ReviewReportRepository reviewReportRepository,
-            DraftDocumentRepository draftDocumentRepository
+            DraftDocumentRepository draftDocumentRepository,
+            AttachmentStorageService attachmentStorageService
     ) {
         this.projectRepository = projectRepository;
         this.reviewReportRepository = reviewReportRepository;
         this.draftDocumentRepository = draftDocumentRepository;
+        this.attachmentStorageService = attachmentStorageService;
     }
 
     @GetMapping
@@ -54,10 +58,14 @@ public class ProjectController {
     @GetMapping("/{id}/archive")
     public Map<String, Object> archive(@PathVariable Long id) {
         BidProject project = projectRepository.findById(id).orElseThrow();
+        var reviews = reviewReportRepository.findByProjectIdOrderByCreatedAtDesc(id);
+        var drafts = draftDocumentRepository.findByProjectIdOrderByCreatedAtDesc(id);
+        reviews.forEach(report -> report.setAttachments(attachmentStorageService.find("REVIEW", report.getId())));
+        drafts.forEach(document -> document.setAttachments(attachmentStorageService.find("DRAFT", document.getId())));
         return Map.of(
                 "project", project,
-                "reviews", reviewReportRepository.findByProjectIdOrderByCreatedAtDesc(id),
-                "drafts", draftDocumentRepository.findByProjectIdOrderByCreatedAtDesc(id)
+                "reviews", reviews,
+                "drafts", drafts
         );
     }
 

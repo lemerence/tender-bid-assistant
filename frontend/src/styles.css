@@ -142,6 +142,22 @@ textarea.control {
   gap: 10px;
 }
 
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 12px;
+}
+
+.file-list span {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
 .tag {
   border-radius: 999px;
   padding: 4px 10px;

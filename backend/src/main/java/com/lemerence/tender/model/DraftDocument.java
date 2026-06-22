@@ -11,7 +11,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "draft_documents")
@@ -40,6 +42,9 @@ public class DraftDocument {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    @Transient
+    private List<Attachment> attachments = List.of();
+
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
@@ -58,4 +63,6 @@ public class DraftDocument {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public List<Attachment> getAttachments() { return attachments; }
+    public void setAttachments(List<Attachment> attachments) { this.attachments = attachments; }
 }

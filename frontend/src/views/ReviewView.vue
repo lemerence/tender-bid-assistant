@@ -17,7 +17,19 @@
           </select>
         </label>
         <label>招标文件内容<textarea v-model="form.tenderText" class="control" rows="9" /></label>
+        <label>招标文件附件
+          <input class="control" type="file" multiple @change="onTenderFilesChange" />
+        </label>
+        <div v-if="tenderFiles.length" class="file-list">
+          <span v-for="file in tenderFiles" :key="file.name">{{ file.name }}</span>
+        </div>
         <label>投标文件内容<textarea v-model="form.bidText" class="control" rows="9" /></label>
+        <label>投标文件附件
+          <input class="control" type="file" multiple @change="onBidFilesChange" />
+        </label>
+        <div v-if="bidFiles.length" class="file-list">
+          <span v-for="file in bidFiles" :key="file.name">{{ file.name }}</span>
+        </div>
         <button class="primary" :disabled="loading" @click="submit">{{ loading ? '审查中...' : '开始审标' }}</button>
       </div>
 
@@ -53,6 +65,8 @@ import { api, type BidProject, type ReviewResponse } from '../api/client';
 const loading = ref(false);
 const result = ref<ReviewResponse | null>(null);
 const projects = ref<BidProject[]>([]);
+const tenderFiles = ref<File[]>([]);
+const bidFiles = ref<File[]>([]);
 const form = reactive({ projectId: undefined as number | undefined, title: '标书合规审查', tenderText: '', bidText: '' });
 
 function isHighRisk(severity: string) {
@@ -71,11 +85,25 @@ async function submit() {
   }
   loading.value = true;
   try {
-    result.value = await api.review({ ...form });
+    if (tenderFiles.value.length || bidFiles.value.length) {
+      result.value = await api.reviewWithFiles({ ...form }, tenderFiles.value, bidFiles.value);
+    } else {
+      result.value = await api.review({ ...form });
+    }
     alert('审查完成，报告已归档。');
   } finally {
     loading.value = false;
   }
+}
+
+function onTenderFilesChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  tenderFiles.value = Array.from(input.files || []);
+}
+
+function onBidFilesChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  bidFiles.value = Array.from(input.files || []);
 }
 
 onMounted(async () => {

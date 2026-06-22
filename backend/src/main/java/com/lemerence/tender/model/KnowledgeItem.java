@@ -8,7 +8,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "knowledge_items")
@@ -34,6 +36,9 @@ public class KnowledgeItem {
     @Column(nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Transient
+    private List<Attachment> attachments = List.of();
+
     @PrePersist
     void onCreate() {
         var now = OffsetDateTime.now();
@@ -58,4 +63,6 @@ public class KnowledgeItem {
     public void setTags(String tags) { this.tags = tags; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public List<Attachment> getAttachments() { return attachments; }
+    public void setAttachments(List<Attachment> attachments) { this.attachments = attachments; }
 }

@@ -23,18 +23,25 @@
         </label>
         <label>标签<input v-model="form.tags" class="control" placeholder="多个标签可用逗号分隔" /></label>
         <label>内容<textarea v-model="form.content" class="control" rows="8" /></label>
+        <label>附件
+          <input class="control" type="file" multiple @change="onFilesChange" />
+        </label>
+        <div v-if="files.length" class="file-list">
+          <span v-for="file in files" :key="file.name">{{ file.name }}</span>
+        </div>
         <button class="primary" :disabled="saving" @click="save">{{ saving ? '保存中...' : '保存知识' }}</button>
       </div>
 
       <div class="panel">
         <h3>知识条目</h3>
         <table class="data-table">
-          <thead><tr><th>标题</th><th>分类</th><th>标签</th></tr></thead>
+          <thead><tr><th>标题</th><th>分类</th><th>标签</th><th>附件</th></tr></thead>
           <tbody>
             <tr v-for="item in items" :key="item.id">
               <td>{{ item.title }}</td>
               <td>{{ item.category }}</td>
               <td>{{ item.tags || '-' }}</td>
+              <td>{{ formatAttachments(item.attachments) }}</td>
             </tr>
           </tbody>
         </table>
@@ -50,6 +57,7 @@ import { api, type KnowledgeItem } from '../api/client';
 const keyword = ref('');
 const saving = ref(false);
 const items = ref<KnowledgeItem[]>([]);
+const files = ref<File[]>([]);
 const form = reactive<KnowledgeItem>({ title: '', category: '企业资质', tags: '', content: '' });
 
 async function load() {
@@ -63,13 +71,28 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.createKnowledge({ ...form });
+    if (files.value.length) {
+      await api.createKnowledgeWithFiles({ ...form }, files.value);
+    } else {
+      await api.createKnowledge({ ...form });
+    }
     Object.assign(form, { title: '', category: '企业资质', tags: '', content: '' });
+    files.value = [];
     await load();
     alert('保存成功。');
   } finally {
     saving.value = false;
   }
+}
+
+function onFilesChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  files.value = Array.from(input.files || []);
+}
+
+function formatAttachments(attachments?: { originalFilename: string }[]) {
+  if (!attachments || attachments.length === 0) return '-';
+  return attachments.map((attachment) => attachment.originalFilename).join('、');
 }
 
 onMounted(load);

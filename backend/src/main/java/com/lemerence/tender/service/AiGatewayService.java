@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class AiGatewayService {
@@ -31,13 +32,15 @@ public class AiGatewayService {
     private final BidProjectRepository projectRepository;
     private final ReviewReportRepository reviewReportRepository;
     private final DraftDocumentRepository draftDocumentRepository;
+    private final AttachmentStorageService attachmentStorageService;
 
     public AiGatewayService(
             AppProperties properties,
             ObjectMapper objectMapper,
             BidProjectRepository projectRepository,
             ReviewReportRepository reviewReportRepository,
-            DraftDocumentRepository draftDocumentRepository
+            DraftDocumentRepository draftDocumentRepository,
+            AttachmentStorageService attachmentStorageService
     ) {
         this.httpClient = HttpClient.newHttpClient();
         this.aiServiceUrl = properties.aiServiceUrl().replaceAll("/+$", "");
@@ -45,10 +48,16 @@ public class AiGatewayService {
         this.projectRepository = projectRepository;
         this.reviewReportRepository = reviewReportRepository;
         this.draftDocumentRepository = draftDocumentRepository;
+        this.attachmentStorageService = attachmentStorageService;
     }
 
     @Transactional
     public AiReviewResponse review(ReviewRequest request) {
+        return review(request, null, null);
+    }
+
+    @Transactional
+    public AiReviewResponse review(ReviewRequest request, MultipartFile[] tenderFiles, MultipartFile[] bidFiles) {
         AiReviewResponse response;
         try {
             response = postJson("/review", request, AiReviewResponse.class);
@@ -69,12 +78,19 @@ public class AiGatewayService {
         if (request.projectId() != null) {
             projectRepository.findById(request.projectId()).ifPresent(report::setProject);
         }
-        reviewReportRepository.save(report);
+        ReviewReport saved = reviewReportRepository.save(report);
+        attachmentStorageService.storeAll("REVIEW", saved.getId(), "招标文件附件", tenderFiles);
+        attachmentStorageService.storeAll("REVIEW", saved.getId(), "投标文件附件", bidFiles);
         return response;
     }
 
     @Transactional
     public AiDraftResponse draft(DraftRequest request) {
+        return draft(request, null, null);
+    }
+
+    @Transactional
+    public AiDraftResponse draft(DraftRequest request, MultipartFile[] tenderFiles, MultipartFile[] materialFiles) {
         AiDraftResponse response;
         try {
             response = postJson("/draft", request, AiDraftResponse.class);
@@ -94,7 +110,9 @@ public class AiGatewayService {
         if (request.projectId() != null) {
             projectRepository.findById(request.projectId()).ifPresent(document::setProject);
         }
-        draftDocumentRepository.save(document);
+        DraftDocument saved = draftDocumentRepository.save(document);
+        attachmentStorageService.storeAll("DRAFT", saved.getId(), "招标文件附件", tenderFiles);
+        attachmentStorageService.storeAll("DRAFT", saved.getId(), "企业素材附件", materialFiles);
         return response;
     }
 

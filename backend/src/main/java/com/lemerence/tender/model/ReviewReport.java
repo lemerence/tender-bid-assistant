@@ -11,7 +11,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "review_reports")
@@ -43,6 +45,9 @@ public class ReviewReport {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    @Transient
+    private List<Attachment> attachments = List.of();
+
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
@@ -63,4 +68,6 @@ public class ReviewReport {
     public String getReportJson() { return reportJson; }
     public void setReportJson(String reportJson) { this.reportJson = reportJson; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public List<Attachment> getAttachments() { return attachments; }
+    public void setAttachments(List<Attachment> attachments) { this.attachments = attachments; }
 }
