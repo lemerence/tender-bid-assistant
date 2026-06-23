@@ -39,7 +39,7 @@
           <tbody>
             <tr v-for="item in items" :key="item.id">
               <td>{{ item.title }}</td>
-              <td>{{ item.category }}</td>
+              <td>{{ displayCategory(item.category) }}</td>
               <td>{{ item.tags || '-' }}</td>
               <td>{{ formatAttachments(item.attachments) }}</td>
             </tr>
@@ -93,6 +93,18 @@ function onFilesChange(event: Event) {
 function formatAttachments(attachments?: { originalFilename: string }[]) {
   if (!attachments || attachments.length === 0) return '-';
   return attachments.map((attachment) => attachment.originalFilename).join('、');
+}
+
+function displayCategory(category: string) {
+  const categoryMap: Record<string, string> = {
+    Qualification: '企业资质',
+    Staff: '人员能力',
+    'Project Reference': '项目业绩',
+    'Technical Plan': '技术方案',
+    'After-sales Service': '售后服务',
+    company: '企业能力',
+  };
+  return categoryMap[category] || category;
 }
 
 onMounted(load);
