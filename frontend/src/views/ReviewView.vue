@@ -69,15 +69,18 @@ const tenderFiles = ref<File[]>([]);
 const bidFiles = ref<File[]>([]);
 const form = reactive({ projectId: undefined as number | undefined, title: '标书合规审查', tenderText: '', bidText: '' });
 
+/** 兼容中英文严重程度，判断问题是否属于高风险。 */
 function isHighRisk(severity: string) {
   return ['高', '致命', 'High', 'Fatal'].includes(severity);
 }
 
+/** 根据总体风险等级选择报告提示框样式。 */
 const alertType = computed(() => {
   if (!result.value) return 'info';
   return isHighRisk(result.value.riskLevel) ? 'error' : result.value.riskLevel === '中' ? 'warning' : 'success';
 });
 
+/** 校验审标输入，按是否选择附件决定 JSON 或 multipart 请求方式。 */
 async function submit() {
   if (!form.tenderText || !form.bidText) {
     alert('请填写招标文件内容和投标文件内容。');
@@ -85,6 +88,7 @@ async function submit() {
   }
   loading.value = true;
   try {
+    // 只要任一侧包含附件，就使用 multipart 接口统一完成报告与附件归档。
     if (tenderFiles.value.length || bidFiles.value.length) {
       result.value = await api.reviewWithFiles({ ...form }, tenderFiles.value, bidFiles.value);
     } else {
@@ -96,16 +100,19 @@ async function submit() {
   }
 }
 
+/** 读取用户选择的招标文件附件。 */
 function onTenderFilesChange(event: Event) {
   const input = event.target as HTMLInputElement;
   tenderFiles.value = Array.from(input.files || []);
 }
 
+/** 读取用户选择的投标文件附件。 */
 function onBidFilesChange(event: Event) {
   const input = event.target as HTMLInputElement;
   bidFiles.value = Array.from(input.files || []);
 }
 
+// 页面初始化时加载可关联的项目列表。
 onMounted(async () => {
   projects.value = await api.listProjects();
 });

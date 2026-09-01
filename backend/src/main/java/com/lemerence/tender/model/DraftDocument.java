@@ -15,6 +15,11 @@ import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/**
+ * AI 生成的投标章节文档实体。
+ *
+ * <p>正文和生成条件持久化到数据库，附件列表在查询归档时动态装配。</p>
+ */
 @Entity
 @Table(name = "draft_documents")
 public class DraftDocument {
@@ -42,9 +47,13 @@ public class DraftDocument {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    // 附件元数据位于独立表中，禁止 JPA 将聚合结果映射为当前表字段。
     @Transient
     private List<Attachment> attachments = List.of();
 
+    /**
+     * 首次持久化前记录文档生成时间。
+     */
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();

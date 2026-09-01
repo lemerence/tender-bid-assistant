@@ -55,6 +55,7 @@ defineEmits<{ navigate: [value: string] }>();
 const health = ref('检查中');
 const stats = reactive({ projects: 0, knowledge: 0 });
 
+// 工作台挂载后集中检查后端状态并统计核心业务数据；任一请求失败时统一标记异常。
 onMounted(async () => {
   try {
     await api.health();

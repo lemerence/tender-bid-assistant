@@ -15,6 +15,11 @@ import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/**
+ * AI 审标报告实体。
+ *
+ * <p>保存审标输入、总体风险以及完整结构化报告，附件在归档查询时动态装配。</p>
+ */
 @Entity
 @Table(name = "review_reports")
 public class ReviewReport {
@@ -45,9 +50,13 @@ public class ReviewReport {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    // 附件保存在独立关系表和对象存储中，此字段仅用于 API 聚合返回。
     @Transient
     private List<Attachment> attachments = List.of();
 
+    /**
+     * 首次持久化前记录报告生成时间。
+     */
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();

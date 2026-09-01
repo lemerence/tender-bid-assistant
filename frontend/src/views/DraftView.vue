@@ -69,6 +69,7 @@ const form = reactive({
   userRequirement: '',
 });
 
+/** 校验编标输入，按是否选择附件决定 JSON 或 multipart 请求方式。 */
 async function submit() {
   if (!form.title || !form.tenderText) {
     alert('请填写标书标题和招标要求。');
@@ -76,6 +77,7 @@ async function submit() {
   }
   loading.value = true;
   try {
+    // 没有附件时使用轻量 JSON 接口；存在任一附件时统一由 multipart 接口归档。
     if (tenderFiles.value.length || materialFiles.value.length) {
       result.value = await api.draftWithFiles({ ...form }, tenderFiles.value, materialFiles.value);
     } else {
@@ -87,16 +89,19 @@ async function submit() {
   }
 }
 
+/** 将招标文件输入框中的 FileList 转换为可响应的普通数组。 */
 function onTenderFilesChange(event: Event) {
   const input = event.target as HTMLInputElement;
   tenderFiles.value = Array.from(input.files || []);
 }
 
+/** 将企业素材输入框中的 FileList 转换为可响应的普通数组。 */
 function onMaterialFilesChange(event: Event) {
   const input = event.target as HTMLInputElement;
   materialFiles.value = Array.from(input.files || []);
 }
 
+// 关联项目是可选项，页面初始化时预加载项目下拉列表。
 onMounted(async () => {
   projects.value = await api.listProjects();
 });

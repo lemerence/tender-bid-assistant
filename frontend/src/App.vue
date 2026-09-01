@@ -35,7 +35,9 @@ import ReviewView from './views/ReviewView.vue';
 import DraftView from './views/DraftView.vue';
 import ArchiveView from './views/ArchiveView.vue';
 
+// MVP 暂不依赖路由库，通过当前导航键切换单页工作区视图。
 const current = ref('dashboard');
+/** 侧边栏导航及其对应图标配置。 */
 const navItems = [
   { key: 'dashboard', label: '工作台', icon: LayoutDashboard },
   { key: 'knowledge', label: '企业知识库', icon: BookOpen },

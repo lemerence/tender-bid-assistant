@@ -1,3 +1,8 @@
+"""AI 招投标助手的独立 FastAPI 服务。
+
+提供审标与编标接口：配置 OpenAI 密钥时优先调用模型，调用不可用时自动切换到本地规则或模板。
+"""
+
 import json
 import os
 from typing import List, Optional
@@ -7,6 +12,7 @@ from fastapi import FastAPI
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+# 先加载服务目录的通用环境变量，再加载项目根目录中被 Git 忽略的本地密钥配置。
 load_dotenv()
 load_dotenv("../.env.local")
 
@@ -14,6 +20,8 @@ app = FastAPI(title="AI Tender Assistant Service", version="0.1.0")
 
 
 class ReviewRequest(BaseModel):
+    """审标接口的输入数据。"""
+
     projectId: Optional[int] = None
     title: str
     tenderText: str
@@ -21,6 +29,8 @@ class ReviewRequest(BaseModel):
 
 
 class ReviewIssue(BaseModel):
+    """审标报告中的单个风险问题。"""
+
     category: str
     severity: str
     requirement: str
@@ -30,6 +40,8 @@ class ReviewIssue(BaseModel):
 
 
 class ReviewResponse(BaseModel):
+    """包含摘要、风险项和检查清单的审标结果。"""
+
     summary: str
     riskLevel: str
     issues: List[ReviewIssue] = Field(default_factory=list)
@@ -37,6 +49,8 @@ class ReviewResponse(BaseModel):
 
 
 class DraftRequest(BaseModel):
+    """编标接口的输入数据。"""
+
     projectId: Optional[int] = None
     title: str
     section: str
@@ -46,6 +60,8 @@ class DraftRequest(BaseModel):
 
 
 class DraftResponse(BaseModel):
+    """AI 或本地模板生成的投标章节。"""
+
     title: str
     section: str
     content: str
@@ -53,15 +69,20 @@ class DraftResponse(BaseModel):
 
 @app.get("/health")
 def health():
+    """返回服务健康状态及 OpenAI 密钥是否已配置。"""
+
     return {"status": "ok", "service": "ai-service", "openaiConfigured": bool(os.getenv("OPENAI_API_KEY"))}
 
 
 @app.post("/review", response_model=ReviewResponse)
 def review(request: ReviewRequest):
+    """执行审标；模型调用失败时自动使用本地关键词规则。"""
+
     if os.getenv("OPENAI_API_KEY"):
         try:
             return _review_with_openai(request)
         except Exception as exc:
+            # 外部模型故障不应阻断审标主流程，兜底结果同时标注真实异常类型便于排查。
             fallback = _review_with_rules(request)
             fallback.summary = f"{fallback.summary}（AI 调用失败，已使用本地规则兜底：{type(exc).__name__}）"
             return fallback
@@ -70,10 +91,13 @@ def review(request: ReviewRequest):
 
 @app.post("/draft", response_model=DraftResponse)
 def draft(request: DraftRequest):
+    """生成投标章节；模型调用失败时自动使用本地章节模板。"""
+
     if os.getenv("OPENAI_API_KEY"):
         try:
             return _draft_with_openai(request)
         except Exception as exc:
+            # 保留一个可编辑的初稿，并明确提示本次结果来自本地模板而非模型。
             fallback = _draft_with_template(request)
             fallback.content = f"{fallback.content}\n\n> 注：AI 调用失败，已使用本地模板兜底：{type(exc).__name__}"
             return fallback
@@ -81,10 +105,15 @@ def draft(request: DraftRequest):
 
 
 def _client() -> OpenAI:
+    """使用当前环境变量创建 OpenAI 客户端。"""
+
     return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def _review_with_openai(request: ReviewRequest) -> ReviewResponse:
+    """调用 OpenAI Responses API 生成符合固定 Schema 的审标报告。"""
+
+    # 对超长原文进行上限截取，避免单次请求无限占用模型上下文。
     prompt = f"""
 你是严谨的中文招投标审标专家。请对用户上传的招标文件内容和投标文件内容进行审查。
 
@@ -138,11 +167,15 @@ def _review_with_openai(request: ReviewRequest) -> ReviewResponse:
             }
         },
     )
+    # 结构化输出已经由 JSON Schema 约束，此处仍交给 Pydantic 做最终类型校验。
     data = json.loads(response.output_text)
     return ReviewResponse(**data)
 
 
 def _draft_with_openai(request: DraftRequest) -> DraftResponse:
+    """调用 OpenAI Responses API 生成结构化投标章节初稿。"""
+
+    # 招标原文和知识库上下文分别限长，给系统指令与生成内容预留上下文空间。
     prompt = f"""
 请为招投标项目生成投标文件章节初稿。
 
@@ -185,11 +218,14 @@ def _draft_with_openai(request: DraftRequest) -> DraftResponse:
             }
         },
     )
+    # 使用 Pydantic 统一校验模型响应，确保返回结构与 Java 后端契约一致。
     data = json.loads(response.output_text)
     return DraftResponse(**data)
 
 
 def _review_with_rules(request: ReviewRequest) -> ReviewResponse:
+    """通过关键词响应缺失规则生成无需外部模型的审标结果。"""
+
     tender = request.tenderText
     bid = request.bidText
     checks = [
@@ -201,6 +237,7 @@ def _review_with_rules(request: ReviewRequest) -> ReviewResponse:
         ("偏离", "偏离", "逐项填写商务/技术偏离表，避免实质性负偏离。"),
     ]
     issues: List[ReviewIssue] = []
+    # 仅当招标文本提出要求、投标文本却未检索到响应时生成问题，降低无关误报。
     for category, keyword, suggestion in checks:
         if keyword in tender and keyword not in bid:
             issues.append(ReviewIssue(
@@ -233,6 +270,8 @@ def _review_with_rules(request: ReviewRequest) -> ReviewResponse:
 
 
 def _draft_with_template(request: DraftRequest) -> DraftResponse:
+    """使用固定章节结构生成本地可编辑初稿。"""
+
     content = f"""# {request.section}
 
 ## 一、章节目标

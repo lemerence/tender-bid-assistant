@@ -9,6 +9,11 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 
+/**
+ * 附件元数据实体。
+ *
+ * <p>实际文件保存在对象存储中，本实体记录文件的业务归属、对象键和展示信息。</p>
+ */
 @Entity
 @Table(name = "attachments")
 public class Attachment {
@@ -39,6 +44,9 @@ public class Attachment {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    /**
+     * 首次持久化前记录附件创建时间。
+     */
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();

@@ -11,6 +11,11 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+/**
+ * 招投标项目实体。
+ *
+ * <p>保存项目基础信息、报价、进度状态和最终投标结果。</p>
+ */
 @Entity
 @Table(name = "bid_projects")
 public class BidProject {
@@ -45,6 +50,9 @@ public class BidProject {
     @Column(nullable = false)
     private OffsetDateTime updatedAt;
 
+    /**
+     * 首次持久化前初始化创建时间和更新时间。
+     */
     @PrePersist
     void onCreate() {
         var now = OffsetDateTime.now();
@@ -52,6 +60,9 @@ public class BidProject {
         updatedAt = now;
     }
 
+    /**
+     * 实体更新前刷新最后修改时间。
+     */
     @PreUpdate
     void onUpdate() {
         updatedAt = OffsetDateTime.now();

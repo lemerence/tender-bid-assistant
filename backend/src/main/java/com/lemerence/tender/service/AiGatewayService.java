@@ -24,6 +24,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * 后端与 AI 服务之间的业务网关。
+ *
+ * <p>负责调用独立 AI 服务、在调用失败时执行本地兜底，并将审标或编标结果及附件归档。</p>
+ */
 @Service
 public class AiGatewayService {
     private final HttpClient httpClient;
@@ -34,6 +39,16 @@ public class AiGatewayService {
     private final DraftDocumentRepository draftDocumentRepository;
     private final AttachmentStorageService attachmentStorageService;
 
+    /**
+     * 创建 AI 网关服务。
+     *
+     * @param properties 应用配置
+     * @param objectMapper JSON 序列化器
+     * @param projectRepository 项目仓储
+     * @param reviewReportRepository 审标报告仓储
+     * @param draftDocumentRepository 编标文档仓储
+     * @param attachmentStorageService 附件存储服务
+     */
     public AiGatewayService(
             AppProperties properties,
             ObjectMapper objectMapper,
@@ -51,17 +66,32 @@ public class AiGatewayService {
         this.attachmentStorageService = attachmentStorageService;
     }
 
+    /**
+     * 执行不带附件的审标任务。
+     *
+     * @param request 审标请求
+     * @return 审标结果
+     */
     @Transactional
     public AiReviewResponse review(ReviewRequest request) {
         return review(request, null, null);
     }
 
+    /**
+     * 执行审标任务并归档审标结果及相关附件。
+     *
+     * @param request 审标请求
+     * @param tenderFiles 招标文件附件
+     * @param bidFiles 投标文件附件
+     * @return 审标结果
+     */
     @Transactional
     public AiReviewResponse review(ReviewRequest request, MultipartFile[] tenderFiles, MultipartFile[] bidFiles) {
         AiReviewResponse response;
         try {
             response = postJson("/review", request, AiReviewResponse.class);
         } catch (IllegalStateException e) {
+            // AI 服务不可达或返回无效数据时，继续使用本地规则生成可用结果，避免核心流程中断。
             response = fallbackReview(request, e);
         }
 
@@ -69,6 +99,7 @@ public class AiGatewayService {
             throw new IllegalStateException("AI review service returned an empty response");
         }
 
+        // 先持久化业务结果以获取记录 ID，再以该 ID 作为附件归属键。
         ReviewReport report = new ReviewReport();
         report.setTitle(request.title());
         report.setRiskLevel(response.riskLevel());
@@ -84,17 +115,32 @@ public class AiGatewayService {
         return response;
     }
 
+    /**
+     * 执行不带附件的编标任务。
+     *
+     * @param request 编标请求
+     * @return 编标结果
+     */
     @Transactional
     public AiDraftResponse draft(DraftRequest request) {
         return draft(request, null, null);
     }
 
+    /**
+     * 执行编标任务并归档生成内容及相关附件。
+     *
+     * @param request 编标请求
+     * @param tenderFiles 招标文件附件
+     * @param materialFiles 企业素材附件
+     * @return 编标结果
+     */
     @Transactional
     public AiDraftResponse draft(DraftRequest request, MultipartFile[] tenderFiles, MultipartFile[] materialFiles) {
         AiDraftResponse response;
         try {
             response = postJson("/draft", request, AiDraftResponse.class);
         } catch (IllegalStateException e) {
+            // AI 调用失败时使用本地模板保证用户仍能获得可编辑初稿。
             response = fallbackDraft(request, e);
         }
 
@@ -116,6 +162,12 @@ public class AiGatewayService {
         return response;
     }
 
+    /**
+     * 将对象序列化为用于归档的 JSON 文本。
+     *
+     * @param value 待序列化对象
+     * @return JSON 文本
+     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -124,6 +176,16 @@ public class AiGatewayService {
         }
     }
 
+    /**
+     * 向 AI 服务发送 JSON 请求并反序列化响应。
+     *
+     * @param path AI 服务接口路径
+     * @param payload 请求对象
+     * @param responseType 响应类型
+     * @param <T> 响应对象类型
+     * @return AI 服务响应
+     * @throws IllegalStateException 当请求、响应或 JSON 处理失败时抛出
+     */
     private <T> T postJson(String path, Object payload, Class<T> responseType) {
         try {
             String body = objectMapper.writeValueAsString(payload);
@@ -142,11 +204,19 @@ public class AiGatewayService {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to call AI service", e);
         } catch (InterruptedException e) {
+            // 恢复中断标记，确保上层线程池能够感知并正确处理取消信号。
             Thread.currentThread().interrupt();
             throw new IllegalStateException("AI service call was interrupted", e);
         }
     }
 
+    /**
+     * 使用关键词缺失规则生成本地审标结果。
+     *
+     * @param request 审标请求
+     * @param reason 触发兜底的异常
+     * @return 本地规则审标结果
+     */
     private AiReviewResponse fallbackReview(ReviewRequest request, Exception reason) {
         List<AiReviewResponse.ReviewIssue> issues = new ArrayList<>();
         addMissingIssue(issues, request, "资质", "资格资质", "补充企业资质证书、有效期和授权证明。");
@@ -171,6 +241,15 @@ public class AiGatewayService {
         );
     }
 
+    /**
+     * 当招标文件包含关键字而投标文件未响应时追加风险项。
+     *
+     * @param issues 风险项集合
+     * @param request 审标请求
+     * @param keyword 检查关键词
+     * @param category 风险分类
+     * @param suggestion 修改建议
+     */
     private void addMissingIssue(List<AiReviewResponse.ReviewIssue> issues, ReviewRequest request, String keyword, String category, String suggestion) {
         if (request.tenderText().contains(keyword) && !request.bidText().contains(keyword)) {
             issues.add(new AiReviewResponse.ReviewIssue(
@@ -184,6 +263,13 @@ public class AiGatewayService {
         }
     }
 
+    /**
+     * 使用本地固定结构生成可编辑的编标初稿。
+     *
+     * @param request 编标请求
+     * @param reason 触发兜底的异常
+     * @return 本地模板生成结果
+     */
     private AiDraftResponse fallbackDraft(DraftRequest request, Exception reason) {
         StringBuilder content = new StringBuilder();
         content.append("# ").append(request.section()).append("\n\n");

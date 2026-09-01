@@ -83,10 +83,12 @@ const projects = ref<BidProject[]>([]);
 const archive = ref<{ project: BidProject; reviews: unknown[]; drafts: unknown[] } | null>(null);
 const form = reactive<BidProject>({ projectName: '', status: '待评估', result: '待定' });
 
+/** 从后端加载按更新时间排序的项目列表。 */
 async function load() {
   projects.value = await api.listProjects();
 }
 
+/** 校验并保存新的归档项目，成功后重置表单并刷新列表。 */
 async function save() {
   if (!form.projectName) {
     alert('请填写项目名称。');
@@ -95,6 +97,7 @@ async function save() {
   saving.value = true;
   try {
     await api.createProject({ ...form });
+    // 保留默认业务状态，同时清空上一次录入的项目字段。
     Object.assign(form, { projectName: '', tenderNo: '', tenderer: '', industry: '', region: '', budgetAmount: undefined, bidAmount: undefined, status: '待评估', result: '待定', notes: '' });
     await load();
     alert('归档保存成功。');
@@ -103,6 +106,7 @@ async function save() {
   }
 }
 
+/** 加载选中项目关联的审标报告和编标文档。 */
 async function select(row: BidProject) {
   if (row.id) {
     archive.value = await api.archive(row.id);
